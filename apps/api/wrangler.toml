@@ -3,4 +3,4 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 
 [vars]
-# Add environment variables here if needed
+CORS_ORIGINS = "https://your-app.vercel.app,https://your-app.netlify.app"

@@ -152,6 +152,7 @@ app.post('/generate', async (c) => {
       b64_json: imageData.b64_json,
     })
   } catch (err) {
+    console.error('Gitee AI Error:', err)
     const message = err instanceof Error ? err.message : 'Image generation failed'
     return c.json({ error: message }, 500)
   }

@@ -1,3 +1,6 @@
+import { openDB, type IDBPDatabase } from "idb";
+import type { Node, Edge, Viewport } from "@xyflow/react";
+
 export interface GeneratedImage {
   id: string;
   url: string;
@@ -11,62 +14,91 @@ export interface GeneratedImage {
   isUpscaled?: boolean;
 }
 
-export interface FlowSession {
-  id: string;
-  name: string;
-  createdAt: number;
-  updatedAt: number;
+// Serializable node data (without functions)
+export interface SerializableNodeData {
+  [key: string]: unknown;
+}
+
+export interface FlowState {
+  nodes: Node<SerializableNodeData>[];
+  edges: Edge[];
+  viewport?: Viewport;
   images: GeneratedImage[];
+  nodeIdCounter: number;
+  updatedAt: number;
 }
 
-const FLOW_STORAGE_KEY = "zenith-flow-sessions";
+const DB_NAME = "zenith-flow-db";
+const DB_VERSION = 2;
+const STATE_STORE = "flowState";
+const STATE_KEY = "current";
 
-export function loadFlowSessions(): FlowSession[] {
+let dbInstance: IDBPDatabase | null = null;
+
+async function getDB(): Promise<IDBPDatabase> {
+  if (dbInstance) return dbInstance;
+
+  dbInstance = await openDB(DB_NAME, DB_VERSION, {
+    upgrade(db) {
+      // Clean up old stores
+      if (db.objectStoreNames.contains("sessions")) {
+        db.deleteObjectStore("sessions");
+      }
+      // Create new simple store
+      if (!db.objectStoreNames.contains(STATE_STORE)) {
+        db.createObjectStore(STATE_STORE);
+      }
+    },
+  });
+
+  return dbInstance;
+}
+
+export async function loadFlowState(): Promise<FlowState | null> {
   try {
-    const data = localStorage.getItem(FLOW_STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
-  } catch {
-    return [];
+    const db = await getDB();
+    const state = await db.get(STATE_STORE, STATE_KEY);
+    return state || null;
+  } catch (e) {
+    console.error("Failed to load flow state:", e);
+    return null;
   }
 }
 
-export function saveFlowSessions(sessions: FlowSession[]) {
-  localStorage.setItem(FLOW_STORAGE_KEY, JSON.stringify(sessions));
-}
-
-export function createFlowSession(): FlowSession {
-  const session: FlowSession = {
-    id: `flow-${Date.now()}`,
-    name: `Flow ${new Date().toLocaleString("zh-CN")}`,
-    createdAt: Date.now(),
-    updatedAt: Date.now(),
-    images: [],
-  };
-  const sessions = loadFlowSessions();
-  sessions.unshift(session);
-  saveFlowSessions(sessions);
-  return session;
-}
-
-export function updateFlowSession(sessionId: string, images: GeneratedImage[]) {
-  const sessions = loadFlowSessions();
-  const idx = sessions.findIndex((s) => s.id === sessionId);
-  if (idx !== -1) {
-    sessions[idx].images = images;
-    sessions[idx].updatedAt = Date.now();
-    saveFlowSessions(sessions);
+export async function saveFlowState(state: Omit<FlowState, "updatedAt">): Promise<void> {
+  try {
+    const db = await getDB();
+    // Strip functions from node data before saving
+    const serializableNodes = state.nodes.map((node) => ({
+      ...node,
+      data: Object.fromEntries(
+        Object.entries(node.data).filter(([, v]) => typeof v !== "function")
+      ),
+    }));
+    const fullState: FlowState = {
+      ...state,
+      nodes: serializableNodes,
+      updatedAt: Date.now(),
+    };
+    await db.put(STATE_STORE, fullState, STATE_KEY);
+  } catch (e) {
+    console.error("Failed to save flow state:", e);
   }
 }
 
-export function deleteFlowSession(sessionId: string) {
-  const sessions = loadFlowSessions().filter((s) => s.id !== sessionId);
-  saveFlowSessions(sessions);
+export async function clearFlowState(): Promise<void> {
+  try {
+    const db = await getDB();
+    await db.delete(STATE_STORE, STATE_KEY);
+  } catch (e) {
+    console.error("Failed to clear flow state:", e);
+  }
 }
 
-// Flow input settings storage
+// Flow input settings storage (keep in localStorage - small data)
 export interface FlowInputSettings {
   aspectRatioIndex: number;
-  resolutionIndex: number; // 0=1K, 1=2K - independent of aspect ratio
+  resolutionIndex: number;
   prompt: string;
 }
 

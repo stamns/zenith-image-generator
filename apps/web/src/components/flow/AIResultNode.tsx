@@ -12,6 +12,8 @@ export type AIResultNodeData = {
   aspectRatio: string;
   model: string;
   seed?: number;
+  imageUrl?: string; // Pre-loaded image URL (for restored nodes)
+  duration?: number; // Generation time (for restored nodes)
   onImageGenerated?: (nodeId: string, image: GeneratedImage) => void;
   onDelete?: (id: string) => void;
 };
@@ -56,11 +58,11 @@ async function generateImage(
 }
 
 function AIResultNode({ id, data }: NodeProps) {
-  const { prompt, width, height, aspectRatio, model, seed, onImageGenerated, onDelete } = data as AIResultNodeData;
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const { prompt, width, height, aspectRatio, model, seed, imageUrl: preloadedUrl, duration: preloadedDuration, onImageGenerated, onDelete } = data as AIResultNodeData;
+  const [imageUrl, setImageUrl] = useState<string | null>(preloadedUrl || null);
+  const [loading, setLoading] = useState(!preloadedUrl);
   const [error, setError] = useState<string | null>(null);
-  const [elapsed, setElapsed] = useState(0);
+  const [elapsed, setElapsed] = useState(preloadedDuration || 0);
   const [isBlurred, setIsBlurred] = useState(false);
   const startTimeRef = useRef(Date.now());
   const generatingRef = useRef(false);
@@ -75,6 +77,9 @@ function AIResultNode({ id, data }: NodeProps) {
   }, [loading]);
 
   useEffect(() => {
+    // Skip generation if image is already loaded (restored node)
+    if (preloadedUrl) return;
+
     // Prevent double execution from React StrictMode
     if (generatingRef.current) return;
     generatingRef.current = true;

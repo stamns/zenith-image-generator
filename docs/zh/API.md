@@ -7,6 +7,93 @@
 - Vercel: `https://your-project.vercel.app/api`
 - Netlify: `https://your-project.netlify.app/api`
 
+## `GET /api/`
+
+健康检查端点。
+
+**响应：**
+
+```json
+{
+  "message": "Z-Image API is running"
+}
+```
+
+## `GET /api/providers`
+
+获取所有可用的 Provider 列表。
+
+**响应：**
+
+```json
+{
+  "providers": [
+    {
+      "id": "gitee",
+      "name": "Gitee AI",
+      "requiresAuth": true,
+      "authHeader": "X-API-Key"
+    },
+    {
+      "id": "huggingface",
+      "name": "HuggingFace",
+      "requiresAuth": false,
+      "authHeader": "X-HF-Token"
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "requiresAuth": true,
+      "authHeader": "X-MS-Token"
+    }
+  ]
+}
+```
+
+## `GET /api/providers/:provider/models`
+
+获取指定 Provider 支持的模型列表。
+
+**路径参数：**
+
+| 参数       | 类型   | 描述                                       |
+| ---------- | ------ | ------------------------------------------ |
+| `provider` | string | Provider ID: `gitee`, `huggingface`, `modelscope` |
+
+**响应：**
+
+```json
+{
+  "provider": "gitee",
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "features": ["fast", "high-quality"]
+    }
+  ]
+}
+```
+
+## `GET /api/models`
+
+获取所有可用的模型列表。
+
+**响应：**
+
+```json
+{
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "provider": "gitee",
+      "features": ["fast", "high-quality"]
+    }
+  ]
+}
+```
+
 ## `POST /api/generate`
 
 统一的图片生成接口，支持多个 AI Provider。
@@ -50,12 +137,13 @@ X-MS-Token: your-modelscope-token     # ModelScope (可选)
 | --------------------- | ------ | ---- | --------------- | ----------------------------------- |
 | `provider`            | string | 否   | `gitee`         | Provider: `gitee`, `huggingface`, `modelscope` |
 | `prompt`              | string | 是   | -               | 图片描述 (最多 10000 字符)          |
-| `negative_prompt`     | string | 否   | `""`            | 负面提示词                          |
+| `negativePrompt`      | string | 否   | `""`            | 负面提示词 (或使用 `negative_prompt`) |
 | `model`               | string | 否   | `z-image-turbo` | 模型名称                            |
 | `width`               | number | 否   | `1024`          | 图片宽度 (256-2048)                 |
 | `height`              | number | 否   | `1024`          | 图片高度 (256-2048)                 |
-| `num_inference_steps` | number | 否   | `9`             | 生成步数 (1-50)                     |
+| `steps`               | number | 否   | `9`             | 生成步数 (1-50)，也可使用 `num_inference_steps` |
 | `seed`                | number | 否   | 随机            | 随机种子，用于复现结果              |
+| `guidanceScale`       | number | 否   | -               | 引导比例，控制提示词对生成结果的影响程度 |
 
 ## Providers
 

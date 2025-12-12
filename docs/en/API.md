@@ -7,6 +7,93 @@ API endpoints after deployment:
 - Vercel: `https://your-project.vercel.app/api`
 - Netlify: `https://your-project.netlify.app/api`
 
+## `GET /api/`
+
+Health check endpoint.
+
+**Response:**
+
+```json
+{
+  "message": "Z-Image API is running"
+}
+```
+
+## `GET /api/providers`
+
+Get all available providers.
+
+**Response:**
+
+```json
+{
+  "providers": [
+    {
+      "id": "gitee",
+      "name": "Gitee AI",
+      "requiresAuth": true,
+      "authHeader": "X-API-Key"
+    },
+    {
+      "id": "huggingface",
+      "name": "HuggingFace",
+      "requiresAuth": false,
+      "authHeader": "X-HF-Token"
+    },
+    {
+      "id": "modelscope",
+      "name": "ModelScope",
+      "requiresAuth": true,
+      "authHeader": "X-MS-Token"
+    }
+  ]
+}
+```
+
+## `GET /api/providers/:provider/models`
+
+Get models supported by a specific provider.
+
+**Path Parameters:**
+
+| Parameter  | Type   | Description                                    |
+| ---------- | ------ | ---------------------------------------------- |
+| `provider` | string | Provider ID: `gitee`, `huggingface`, `modelscope` |
+
+**Response:**
+
+```json
+{
+  "provider": "gitee",
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "features": ["fast", "high-quality"]
+    }
+  ]
+}
+```
+
+## `GET /api/models`
+
+Get all available models.
+
+**Response:**
+
+```json
+{
+  "models": [
+    {
+      "id": "z-image-turbo",
+      "name": "Z-Image Turbo",
+      "provider": "gitee",
+      "features": ["fast", "high-quality"]
+    }
+  ]
+}
+```
+
 ## `POST /api/generate`
 
 Unified image generation endpoint supporting multiple AI providers.
@@ -50,12 +137,13 @@ X-MS-Token: your-modelscope-token     # ModelScope (optional)
 | --------------------- | ------ | -------- | --------------- | ----------------------------------- |
 | `provider`            | string | No       | `gitee`         | Provider: `gitee`, `huggingface`, `modelscope` |
 | `prompt`              | string | Yes      | -               | Image description (max 10000 chars) |
-| `negative_prompt`     | string | No       | `""`            | What to avoid in the image          |
+| `negativePrompt`      | string | No       | `""`            | What to avoid (or use `negative_prompt`) |
 | `model`               | string | No       | `z-image-turbo` | Model name                          |
 | `width`               | number | No       | `1024`          | Image width (256-2048)              |
 | `height`              | number | No       | `1024`          | Image height (256-2048)             |
-| `num_inference_steps` | number | No       | `9`             | Generation steps (1-50)             |
+| `steps`               | number | No       | `9`             | Generation steps (1-50), or use `num_inference_steps` |
 | `seed`                | number | No       | random          | Random seed for reproducibility     |
+| `guidanceScale`       | number | No       | -               | Guidance scale, controls prompt influence on output |
 
 ## Providers
 

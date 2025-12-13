@@ -3,8 +3,7 @@
  */
 
 import { HF_SPACES } from '@z-image/shared'
-import type { GenerateSuccessResponse } from '@z-image/shared'
-import type { ImageProvider, ProviderGenerateRequest } from './types'
+import type { ImageProvider, ProviderGenerateRequest, ProviderGenerateResult } from './types'
 
 /** Extract complete event data from SSE stream */
 function extractCompleteEventData(sseStream: string): unknown {
@@ -78,6 +77,18 @@ async function callGradioApi(baseUrl: string, endpoint: string, data: unknown[],
   return extractCompleteEventData(text) as unknown[]
 }
 
+/** Parse seed from response based on model */
+function parseSeedFromResponse(modelId: string, result: unknown[], fallbackSeed: number): number {
+  // Qwen Image Fast returns seed as string: "Seed used for generation: 12345"
+  if (modelId === 'qwen-image-fast' && typeof result[1] === 'string') {
+    const match = result[1].match(/Seed used for generation:\s*(\d+)/)
+    if (match) return Number.parseInt(match[1], 10)
+  }
+  // Other models return seed as number in data[1]
+  if (typeof result[1] === 'number') return result[1]
+  return fallbackSeed
+}
+
 /** Model-specific Gradio configurations */
 const MODEL_CONFIGS: Record<
   string,
@@ -105,7 +116,7 @@ export class HuggingFaceProvider implements ImageProvider {
   readonly id = 'huggingface'
   readonly name = 'HuggingFace'
 
-  async generate(request: ProviderGenerateRequest): Promise<GenerateSuccessResponse> {
+  async generate(request: ProviderGenerateRequest): Promise<ProviderGenerateResult> {
     const seed = request.seed ?? Math.floor(Math.random() * 2147483647)
     const modelId = request.model || 'z-image-turbo'
     const baseUrl = HF_SPACES[modelId as keyof typeof HF_SPACES] || HF_SPACES['z-image-turbo']
@@ -121,7 +132,7 @@ export class HuggingFaceProvider implements ImageProvider {
       request.authToken
     )
 
-    const result = data as Array<{ url?: string } | number>
+    const result = data as Array<{ url?: string } | number | string>
     const imageUrl = (result[0] as { url?: string })?.url
     if (!imageUrl) {
       // console.error('[HuggingFace] Invalid result:', result)
@@ -131,7 +142,7 @@ export class HuggingFaceProvider implements ImageProvider {
     // console.log(`[HuggingFace] Success! URL: ${imageUrl.slice(0, 60)}...`)
     return {
       url: imageUrl,
-      seed: typeof result[1] === 'number' ? result[1] : seed,
+      seed: parseSeedFromResponse(modelId, result, seed),
     }
   }
 }

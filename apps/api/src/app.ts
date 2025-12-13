@@ -7,11 +7,14 @@
 
 import {
   type GenerateRequest,
+  type GenerateSuccessResponse,
+  type ImageDetails,
   HF_SPACES,
   MODEL_CONFIGS,
   PROVIDER_CONFIGS,
   type ProviderType,
   getModelsByProvider,
+  getModelByProviderAndId,
   isAllowedImageUrl,
   validateDimensions,
   validatePrompt,
@@ -192,6 +195,7 @@ export function createApp(config: AppConfig = {}) {
     }
 
     try {
+      const startTime = Date.now()
       const provider = getProvider(providerId as ProviderType)
       const result = await provider.generate({
         model: body.model,
@@ -204,7 +208,37 @@ export function createApp(config: AppConfig = {}) {
         guidanceScale: body.guidanceScale,
         authToken,
       })
-      return c.json(result)
+      const duration = Date.now() - startTime
+
+      // Get model and provider display names
+      const modelConfig = getModelByProviderAndId(providerId as ProviderType, body.model)
+      const modelName = modelConfig?.name || body.model
+      const providerName = providerConfig?.name || providerId
+
+      // Build dimensions string with aspect ratio
+      const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+      const divisor = gcd(width, height)
+      const ratioW = width / divisor
+      const ratioH = height / divisor
+      const dimensions = `${width} x ${height} (${ratioW}:${ratioH})`
+
+      // Format duration
+      const durationStr = duration >= 1000 ? `${(duration / 1000).toFixed(1)}s` : `${duration}ms`
+
+      const imageDetails: ImageDetails = {
+        url: result.url,
+        provider: providerName,
+        model: modelName,
+        dimensions,
+        duration: durationStr,
+        seed: result.seed,
+        steps,
+        prompt: body.prompt,
+        negativePrompt: body.negativePrompt || body.negative_prompt || '',
+      }
+
+      const response: GenerateSuccessResponse = { imageDetails }
+      return c.json(response)
     } catch (err) {
       console.error(`${providerId} Error:`, err)
       const message = err instanceof Error ? err.message : 'Image generation failed'
@@ -214,7 +248,7 @@ export function createApp(config: AppConfig = {}) {
 
   // Legacy HuggingFace endpoint (for backward compatibility)
   app.post('/generate-hf', async (c) => {
-    let body: { prompt: string; width?: number; height?: number; model?: string; seed?: number }
+    let body: { prompt: string; width?: number; height?: number; model?: string; seed?: number; steps?: number }
     try {
       body = await c.req.json()
     } catch {
@@ -230,6 +264,8 @@ export function createApp(config: AppConfig = {}) {
     const hfToken = c.req.header('X-HF-Token')
     const width = body.width ?? 1024
     const height = body.height ?? 1024
+    const modelId = body.model || 'z-image-turbo'
+    const steps = body.steps ?? 9
 
     const dimensionsValidation = validateDimensions(width, height)
     if (!dimensionsValidation.valid) {
@@ -237,16 +273,47 @@ export function createApp(config: AppConfig = {}) {
     }
 
     try {
+      const startTime = Date.now()
       const provider = getProvider('huggingface')
       const result = await provider.generate({
-        model: body.model || 'z-image',
+        model: modelId,
         prompt: body.prompt,
         width,
         height,
+        steps,
         seed: body.seed,
         authToken: hfToken,
       })
-      return c.json(result)
+      const duration = Date.now() - startTime
+
+      // Get model display name
+      const modelConfig = getModelByProviderAndId('huggingface', modelId)
+      const modelName = modelConfig?.name || modelId
+
+      // Build dimensions string with aspect ratio
+      const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b))
+      const divisor = gcd(width, height)
+      const ratioW = width / divisor
+      const ratioH = height / divisor
+      const dimensions = `${width} x ${height} (${ratioW}:${ratioH})`
+
+      // Format duration
+      const durationStr = duration >= 1000 ? `${(duration / 1000).toFixed(1)}s` : `${duration}ms`
+
+      const imageDetails: ImageDetails = {
+        url: result.url,
+        provider: 'HuggingFace',
+        model: modelName,
+        dimensions,
+        duration: durationStr,
+        seed: result.seed,
+        steps,
+        prompt: body.prompt,
+        negativePrompt: '',
+      }
+
+      const response: GenerateSuccessResponse = { imageDetails }
+      return c.json(response)
     } catch (err) {
       return c.json({ error: err instanceof Error ? err.message : 'Generation failed' }, 500)
     }

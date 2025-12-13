@@ -26,14 +26,32 @@ export interface GenerateRequest {
   guidanceScale?: number
 }
 
+/** Image generation details */
+export interface ImageDetails {
+  /** Image URL */
+  url: string
+  /** Provider name */
+  provider: string
+  /** Model name */
+  model: string
+  /** Dimensions string (e.g. "1024 x 1024 (1:1)") */
+  dimensions: string
+  /** Generation duration (e.g. "8.1s") */
+  duration: string
+  /** Random seed */
+  seed: number
+  /** Inference steps */
+  steps: number
+  /** Prompt text */
+  prompt: string
+  /** Negative prompt */
+  negativePrompt: string
+}
+
 /** Image generation response (success) */
 export interface GenerateSuccessResponse {
-  /** Image URL */
-  url?: string
-  /** Base64 encoded data */
-  b64_json?: string
-  /** Random seed */
-  seed?: number
+  /** Image details */
+  imageDetails: ImageDetails
 }
 
 /** Image generation response (error) */

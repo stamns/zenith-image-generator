@@ -14,9 +14,16 @@ export type AIResultNodeData = {
   model: string
   seed?: number
   imageUrl?: string // Pre-loaded image URL (for restored nodes)
-  duration?: number // Generation time (for restored nodes)
+  duration?: string // Generation time string (for restored nodes)
   onImageGenerated?: (nodeId: string, image: GeneratedImage) => void
   onDelete?: (id: string) => void
+}
+
+import type { ImageDetails } from '@z-image/shared'
+
+interface GenerateApiResponse {
+  error?: string
+  imageDetails?: ImageDetails
 }
 
 async function generateImageApi(
@@ -27,7 +34,7 @@ async function generateImageApi(
   token: string,
   model: string,
   seed?: number
-): Promise<string> {
+): Promise<ImageDetails> {
   const baseUrl = import.meta.env.VITE_API_URL || ''
   const { PROVIDER_CONFIGS } = await import('@/lib/constants')
   const providerConfig = PROVIDER_CONFIGS[provider]
@@ -52,7 +59,7 @@ async function generateImageApi(
   const text = await res.text()
   if (!text) throw new Error('Empty response from server')
 
-  let data: { error?: string; url?: string; b64_json?: string }
+  let data: GenerateApiResponse
   try {
     data = JSON.parse(text)
   } catch {
@@ -60,7 +67,8 @@ async function generateImageApi(
   }
 
   if (!res.ok) throw new Error(data.error || 'Failed to generate')
-  return data.url || `data:image/png;base64,${data.b64_json}`
+  if (!data.imageDetails) throw new Error('No image details returned')
+  return data.imageDetails
 }
 
 function AIResultNode({ id, data }: NodeProps) {
@@ -77,14 +85,16 @@ function AIResultNode({ id, data }: NodeProps) {
     onDelete,
   } = data as AIResultNodeData
   const [imageUrl, setImageUrl] = useState<string | null>(preloadedUrl || null)
+  const [imageProvider, setImageProvider] = useState<string | null>(null)
   const [loading, setLoading] = useState(!preloadedUrl)
   const [error, setError] = useState<string | null>(null)
-  const [elapsed, setElapsed] = useState(preloadedDuration || 0)
+  const [elapsed, setElapsed] = useState(0)
+  const [durationStr, setDurationStr] = useState<string | null>(preloadedDuration || null)
   const [isBlurred, setIsBlurred] = useState(false)
   const startTimeRef = useRef(0)
   const generatingRef = useRef(false)
 
-  // Timer for elapsed time
+  // Timer for elapsed time during generation
   useEffect(() => {
     if (!loading) return
     const interval = setInterval(() => {
@@ -118,7 +128,7 @@ function AIResultNode({ id, data }: NodeProps) {
       }
 
       try {
-        const url = await generateImageApi(
+        const imageDetails = await generateImageApi(
           prompt,
           width,
           height,
@@ -127,18 +137,22 @@ function AIResultNode({ id, data }: NodeProps) {
           selectedModel,
           seed
         )
-        setImageUrl(url)
+        setImageUrl(imageDetails.url)
+        setImageProvider(imageDetails.provider)
+        setDurationStr(imageDetails.duration)
         setLoading(false)
-        const duration = (Date.now() - startTimeRef.current) / 1000
         onImageGenerated?.(id, {
           id,
-          url,
-          prompt,
-          aspectRatio,
+          url: imageDetails.url,
+          provider: imageDetails.provider,
+          model: imageDetails.model,
+          dimensions: imageDetails.dimensions,
+          duration: imageDetails.duration,
+          seed: imageDetails.seed,
+          steps: imageDetails.steps,
+          prompt: imageDetails.prompt,
+          negativePrompt: imageDetails.negativePrompt,
           timestamp: Date.now(),
-          model,
-          seed,
-          duration,
           isBlurred: false,
           isUpscaled: false,
         })
@@ -149,12 +163,10 @@ function AIResultNode({ id, data }: NodeProps) {
     })()
   }, [prompt, width, height, aspectRatio, model, seed, id, onImageGenerated])
 
-  const handleDownload = () => {
+  const handleDownload = async () => {
     if (!imageUrl) return
-    const a = document.createElement('a')
-    a.href = imageUrl
-    a.download = `zenith-${Date.now()}.png`
-    a.click()
+    const { downloadImage } = await import('@/lib/utils')
+    await downloadImage(imageUrl, `zenith-${Date.now()}.png`, imageProvider || undefined)
   }
 
   return (
@@ -221,7 +233,9 @@ function AIResultNode({ id, data }: NodeProps) {
       <div className="flex items-center gap-2 text-xs text-zinc-500">
         <Sparkles size={12} className="text-yellow-500" />
         <span>{model}</span>
-        {!loading && !error && <span className="text-zinc-600">• {elapsed.toFixed(1)}s</span>}
+        {!loading && !error && durationStr && (
+          <span className="text-zinc-600">• {durationStr}</span>
+        )}
       </div>
 
       <Handle type="source" position={Position.Bottom} className="!bg-zinc-600" />

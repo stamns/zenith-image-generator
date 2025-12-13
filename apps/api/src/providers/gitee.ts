@@ -2,51 +2,70 @@
  * Gitee AI Provider Implementation
  */
 
-import type { GenerateSuccessResponse } from '@z-image/shared'
-import OpenAI from 'openai'
-import type { ImageProvider, ProviderGenerateRequest } from './types'
+import type { ImageProvider, ProviderGenerateRequest, ProviderGenerateResult } from './types'
+
+const GITEE_API_URL = 'https://ai.gitee.com/v1/images/generations'
+
+interface GiteeImageResponse {
+  data: Array<{
+    url?: string
+    b64_json?: string
+  }>
+}
 
 export class GiteeProvider implements ImageProvider {
   readonly id = 'gitee'
   readonly name = 'Gitee AI'
 
-  private readonly baseUrl = 'https://ai.gitee.com/v1'
-
-  async generate(request: ProviderGenerateRequest): Promise<GenerateSuccessResponse> {
+  async generate(request: ProviderGenerateRequest): Promise<ProviderGenerateResult> {
     if (!request.authToken) {
       throw new Error('API Key is required for Gitee AI')
     }
 
-    const client = new OpenAI({
-      baseURL: this.baseUrl,
-      apiKey: request.authToken.trim(),
-    })
+    const seed = request.seed ?? Math.floor(Math.random() * 2147483647)
 
-    const extraBody: Record<string, unknown> = {
-      negative_prompt: request.negativePrompt || '',
+    const requestBody: Record<string, unknown> = {
+      prompt: request.prompt,
+      model: request.model || 'z-image-turbo',
+      width: request.width,
+      height: request.height,
+      seed,
       num_inference_steps: request.steps ?? 9,
+      response_format: 'url',
+    }
+
+    if (request.negativePrompt) {
+      requestBody.negative_prompt = request.negativePrompt
     }
 
     if (request.guidanceScale !== undefined) {
-      extraBody.guidance_scale = request.guidanceScale
+      requestBody.guidance_scale = request.guidanceScale
     }
 
-    const response = await client.images.generate({
-      prompt: request.prompt,
-      model: request.model || 'z-image-turbo',
-      size: `${request.width}x${request.height}` as '1024x1024',
-      // @ts-expect-error extra_body is supported by OpenAI SDK
-      extra_body: extraBody,
+    const response = await fetch(GITEE_API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${request.authToken.trim()}`,
+      },
+      body: JSON.stringify(requestBody),
     })
 
-    const imageData = response.data?.[0]
-    if (!imageData || (!imageData.url && !imageData.b64_json)) {
+    if (!response.ok) {
+      const errData = await response.json().catch(() => ({}))
+      const errMsg = (errData as { message?: string }).message || `Gitee AI API Error: ${response.status}`
+      throw new Error(errMsg)
+    }
+
+    const data = (await response.json()) as GiteeImageResponse
+
+    if (!data.data?.[0]?.url) {
       throw new Error('No image returned from Gitee AI')
     }
 
     return {
-      url: imageData.url,
-      b64_json: imageData.b64_json,
+      url: data.data[0].url,
+      seed,
     }
   }
 }

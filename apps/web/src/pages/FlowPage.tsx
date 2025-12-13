@@ -63,7 +63,7 @@ function FlowCanvas() {
   const handleImageGenerated = useCallback(
     (nodeId: string, image: GeneratedImage) => {
       imagesRef.current = [...imagesRef.current, image]
-      // Update node data with the generated image URL
+      // Update node data with the generated image URL and duration
       setNodes((nds) =>
         nds.map((node) =>
           node.id === nodeId
@@ -72,7 +72,7 @@ function FlowCanvas() {
                 data: {
                   ...node.data,
                   imageUrl: image.url,
-                  duration: image.duration,
+                  duration: image.duration, // Now a string like "8.1s"
                 },
               }
             : node
@@ -169,13 +169,11 @@ function FlowCanvas() {
 
   const handleDownloadAll = async () => {
     if (imagesRef.current.length === 0) return
+    const { downloadImage } = await import('@/lib/utils')
     for (let i = 0; i < imagesRef.current.length; i++) {
       const img = imagesRef.current[i]
-      const a = document.createElement('a')
-      a.href = img.url
-      a.download = `zenith-flow-${i + 1}.png`
-      a.click()
-      await new Promise((r) => setTimeout(r, 200))
+      await downloadImage(img.url, `zenith-flow-${i + 1}.png`, img.provider)
+      await new Promise((r) => setTimeout(r, 300))
     }
   }
 

@@ -4,12 +4,15 @@ import { type IDBPDatabase, openDB } from 'idb'
 export interface GeneratedImage {
   id: string
   url: string
-  prompt: string
-  aspectRatio: string
-  timestamp: number
+  provider: string
   model: string
-  seed?: number
-  duration?: number
+  dimensions: string
+  duration: string
+  seed: number
+  steps: number
+  prompt: string
+  negativePrompt: string
+  timestamp: number
   isBlurred?: boolean
   isUpscaled?: boolean
 }

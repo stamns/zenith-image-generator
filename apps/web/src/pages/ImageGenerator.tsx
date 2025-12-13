@@ -17,7 +17,7 @@ export default function ImageGenerator() {
     height,
     steps,
     loading,
-    imageUrl,
+    imageDetails,
     status,
     elapsed,
     selectedRatio,
@@ -86,12 +86,9 @@ export default function ImageGenerator() {
             {/* Right Panel - Output */}
             <div className="lg:col-span-2 space-y-4">
               <ImageResultCard
-                imageUrl={imageUrl}
+                imageDetails={imageDetails}
                 loading={loading}
                 elapsed={elapsed}
-                width={width}
-                height={height}
-                apiProvider={provider}
                 showInfo={showInfo}
                 isBlurred={isBlurred}
                 isUpscaled={isUpscaled}

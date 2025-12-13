@@ -1,14 +1,11 @@
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { ProviderType } from '@/lib/constants'
+import type { ImageDetails } from '@z-image/shared'
 import { Download, Eye, EyeOff, ImageIcon, Info, Loader2, Trash2 } from 'lucide-react'
 
 interface ImageResultCardProps {
-  imageUrl: string | null
+  imageDetails: ImageDetails | null
   loading: boolean
   elapsed: number
-  width: number
-  height: number
-  apiProvider: ProviderType
   showInfo: boolean
   isBlurred: boolean
   isUpscaled: boolean
@@ -21,12 +18,9 @@ interface ImageResultCardProps {
 }
 
 export function ImageResultCard({
-  imageUrl,
+  imageDetails,
   loading,
   elapsed,
-  width,
-  height,
-  apiProvider,
   showInfo,
   isBlurred,
   isUpscaled,
@@ -44,10 +38,10 @@ export function ImageResultCard({
       </CardHeader>
       <CardContent>
         <div className="relative rounded-lg overflow-hidden bg-zinc-900 border border-zinc-800 group">
-          {imageUrl ? (
+          {imageDetails ? (
             <>
               <img
-                src={imageUrl}
+                src={imageDetails.url}
                 alt="Generated"
                 className={`w-full transition-all duration-300 ${isBlurred ? 'blur-xl' : ''}`}
               />
@@ -127,10 +121,22 @@ export function ImageResultCard({
               {showInfo && (
                 <div className="absolute top-3 left-3 right-3 p-3 rounded-xl bg-black/70 backdrop-blur-md border border-white/10 text-xs text-zinc-300 space-y-1">
                   <div>
-                    <span className="text-zinc-500">Size:</span> {width}×{height}
+                    <span className="text-zinc-500">Provider:</span> {imageDetails.provider}
                   </div>
                   <div>
-                    <span className="text-zinc-500">API:</span> {apiProvider}
+                    <span className="text-zinc-500">Model:</span> {imageDetails.model}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Dimensions:</span> {imageDetails.dimensions}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Duration:</span> {imageDetails.duration}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Seed:</span> {imageDetails.seed}
+                  </div>
+                  <div>
+                    <span className="text-zinc-500">Steps:</span> {imageDetails.steps}
                   </div>
                   <div>
                     <span className="text-zinc-500">Upscaled:</span>{' '}

@@ -17,8 +17,11 @@ import {
   saveSettings,
 } from '@/lib/constants'
 import { encryptAndStoreToken, loadAllTokens } from '@/lib/crypto'
+import type { ImageDetails } from '@z-image/shared'
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
+
+const IMAGE_DETAILS_KEY = 'lastImageDetails'
 
 export function useImageGenerator() {
   const [tokens, setTokens] = useState<Record<ProviderType, string>>({
@@ -38,9 +41,10 @@ export function useImageGenerator() {
   const [height, setHeight] = useState(() => loadSettings().height ?? 1024)
   const [steps, setSteps] = useState(() => loadSettings().steps ?? 9)
   const [loading, setLoading] = useState(false)
-  const [imageUrl, setImageUrl] = useState<string | null>(() =>
-    localStorage.getItem('lastImageUrl')
-  )
+  const [imageDetails, setImageDetails] = useState<ImageDetails | null>(() => {
+    const stored = localStorage.getItem(IMAGE_DETAILS_KEY)
+    return stored ? JSON.parse(stored) : null
+  })
   const [status, setStatus] = useState('Ready.')
   const [elapsed, setElapsed] = useState(0)
   const [selectedRatio, setSelectedRatio] = useState(() => loadSettings().selectedRatio ?? '1:1')
@@ -91,12 +95,12 @@ export function useImageGenerator() {
   }, [prompt, negativePrompt, width, height, steps, selectedRatio, uhd, upscale8k, provider, model])
 
   useEffect(() => {
-    if (imageUrl) {
-      localStorage.setItem('lastImageUrl', imageUrl)
+    if (imageDetails) {
+      localStorage.setItem(IMAGE_DETAILS_KEY, JSON.stringify(imageDetails))
     } else {
-      localStorage.removeItem('lastImageUrl')
+      localStorage.removeItem(IMAGE_DETAILS_KEY)
     }
-  }, [imageUrl])
+  }, [imageDetails])
 
   useEffect(() => {
     localStorage.setItem('isBlurred', String(isBlurred))
@@ -136,23 +140,21 @@ export function useImageGenerator() {
     }
   }
 
-  const handleDownload = () => {
-    if (!imageUrl) return
-    const a = document.createElement('a')
-    a.href = imageUrl
-    a.download = `zenith-${Date.now()}.jpg`
-    a.click()
+  const handleDownload = async () => {
+    if (!imageDetails?.url) return
+    const { downloadImage } = await import('@/lib/utils')
+    await downloadImage(imageDetails.url, `zenith-${Date.now()}.png`, imageDetails.provider)
   }
 
   const handleUpscale = async () => {
-    if (!imageUrl || isUpscaling || isUpscaled) return
+    if (!imageDetails?.url || isUpscaling || isUpscaled) return
     setIsUpscaling(true)
     addStatus('Upscaling to 4x...')
 
-    const result = await upscaleImage(imageUrl, 4, tokens.huggingface || undefined)
+    const result = await upscaleImage(imageDetails.url, 4, tokens.huggingface || undefined)
 
     if (result.success && result.data.url) {
-      setImageUrl(result.data.url)
+      setImageDetails((prev) => (prev ? { ...prev, url: result.data.url as string } : null))
       setIsUpscaled(true)
       addStatus('4x upscale complete!')
       toast.success('Image upscaled to 4x!')
@@ -165,7 +167,7 @@ export function useImageGenerator() {
   }
 
   const handleDelete = () => {
-    setImageUrl(null)
+    setImageDetails(null)
     setIsUpscaled(false)
     setIsBlurred(false)
     setShowInfo(false)
@@ -180,7 +182,7 @@ export function useImageGenerator() {
     }
 
     setLoading(true)
-    setImageUrl(null)
+    setImageDetails(null)
     setIsUpscaled(false)
     setIsBlurred(false)
     setShowInfo(false)
@@ -206,20 +208,17 @@ export function useImageGenerator() {
         throw new Error(result.error)
       }
 
-      let generatedUrl =
-        result.data.url ||
-        (result.data.b64_json ? `data:image/png;base64,${result.data.b64_json}` : undefined)
-
-      if (!generatedUrl) throw new Error('No image returned')
-      addStatus('Image generated!')
+      const details = result.data.imageDetails
+      if (!details?.url) throw new Error('No image returned')
+      addStatus(`Image generated in ${details.duration}!`)
 
       // Auto upscale to 8K if enabled
-      if (upscale8k && generatedUrl.startsWith('http')) {
+      if (upscale8k && details.url.startsWith('http')) {
         addStatus('Upscaling to 8K...')
-        const upResult = await upscaleImage(generatedUrl, 4, tokens.huggingface || undefined)
+        const upResult = await upscaleImage(details.url, 4, tokens.huggingface || undefined)
 
         if (upResult.success && upResult.data.url) {
-          generatedUrl = upResult.data.url
+          details.url = upResult.data.url
           addStatus('8K upscale complete!')
         } else {
           addStatus(`8K upscale failed: ${upResult.success ? 'No URL' : upResult.error}`)
@@ -227,7 +226,7 @@ export function useImageGenerator() {
         }
       }
 
-      setImageUrl(generatedUrl ?? null)
+      setImageDetails(details)
       toast.success('Image generated!')
     } catch (err) {
       const msg = err instanceof Error ? err.message : 'An error occurred'
@@ -251,7 +250,7 @@ export function useImageGenerator() {
     height,
     steps,
     loading,
-    imageUrl,
+    imageDetails,
     status,
     elapsed,
     selectedRatio,

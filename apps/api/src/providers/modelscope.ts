@@ -2,8 +2,7 @@
  * ModelScope Provider Implementation
  */
 
-import type { GenerateSuccessResponse } from '@z-image/shared'
-import type { ImageProvider, ProviderGenerateRequest } from './types'
+import type { ImageProvider, ProviderGenerateRequest, ProviderGenerateResult } from './types'
 
 interface ModelScopeResponse {
   images?: Array<{ url?: string }>
@@ -15,7 +14,7 @@ export class ModelScopeProvider implements ImageProvider {
 
   private readonly baseUrl = 'https://api-inference.modelscope.cn/v1'
 
-  async generate(request: ProviderGenerateRequest): Promise<GenerateSuccessResponse> {
+  async generate(request: ProviderGenerateRequest): Promise<ProviderGenerateResult> {
     if (!request.authToken) {
       throw new Error('API Token is required for ModelScope')
     }
@@ -73,7 +72,7 @@ export class ModelScopeProvider implements ImageProvider {
     }
 
     // console.log(`[ModelScope] Success! Image URL: ${imageUrl.slice(0, 50)}...`)
-    return { url: imageUrl }
+    return { url: imageUrl, seed: body.seed as number }
   }
 }
 

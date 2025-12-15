@@ -236,7 +236,10 @@ export function useImageGenerator() {
       if (details.url.includes('.hf.space') && details.url.startsWith('http')) {
         try {
           addStatus('Caching image...')
-          const response = await fetch(details.url)
+          // Use proxy to bypass CORS in production
+          const apiUrl = import.meta.env.VITE_API_URL || ''
+          const proxyUrl = `${apiUrl}/api/proxy-image?url=${encodeURIComponent(details.url)}`
+          const response = await fetch(proxyUrl)
           const blob = await response.blob()
           details.url = URL.createObjectURL(blob)
         } catch (e) {
